@@ -1,0 +1,57 @@
+# yaml-language-server: $schema=https://goreleaser.com/static/schema.json
+version: 2
+project_name: creality2mqtt
+
+builds:
+  - id: creality2mqtt
+    main: ./cmd/creality2mqtt
+    goos:
+      - linux
+      - windows
+      - darwin
+    goarch:
+      - amd64
+      - arm64
+    binary: creality2mqtt
+    env:
+      - CGO_ENABLED=0
+    ldflags:
+      - -s -w -X main.version={{.Version}} -X main.commit={{.Commit}} -X main.date={{.Date}}
+    hooks:
+      pre:
+        - go mod tidy
+
+archives:
+  - id: archive
+    formats:
+      - tar.gz
+      - zip
+    name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+
+dockers_v2:
+  - id: ghcr
+    dockerfile: Dockerfile
+    sbom: cyclonedx
+    platforms:
+      - linux/amd64
+      - linux/arm64
+    images:
+      - ghcr.io/davidcollom/creality2mqtt
+    tags:
+      - "v{{ .Version }}"
+      - "v{{ .Major }}.{{ .Minor }}"
+      - "latest"
+    labels:
+      org.opencontainers.image.title: "{{ .ProjectName }}"
+      org.opencontainers.image.version: "{{ .Version }}"
+      org.opencontainers.image.revision: "{{ .FullCommit }}"
+      org.opencontainers.image.created: "{{ .Date }}"
+      org.opencontainers.image.source: "https://github.com/davidcollom/creality2mqtt"
+
+changelog:
+  sort: desc
+
+release:
+  github:
+    owner: davidcollom
+    name: creality2mqtt

@@ -1,0 +1,22 @@
+version: '3.8'
+services:
+  creality2mqtt:
+    build: .
+    image: creality2mqtt:local
+    environment:
+      - CREALITY_WS_URL=ws://xxx.xxx.xxx.xxx:9999
+      - CREALITY_MQTT_BROKER=tcp://mqtt:1883
+    ports:
+      - "1883:1883"
+  mqtt:
+    image: eclipse-mosquitto:2.0
+    ports:
+      - "1883:1883"
+      - "9001:9001"
+    volumes:
+      - mosquitto_data:/mosquitto/data
+      - mosquitto_log:/mosquitto/log
+
+volumes:
+  mosquitto_data:
+  mosquitto_log:
