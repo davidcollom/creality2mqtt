@@ -1,52 +1,63 @@
-# Creality K1x (SE,MAX,etc...) WebSocket → MQTT Bridge
+# Creality K1x (SE, MAX, etc.) WebSocket → MQTT Bridge
 
-A small Go service that connects to a Creality printer's LAN WebSocket interface, decodes live telemetry, normalises the data, and publishes structured MQTT topics suitable for Home Assistant automations (e.g., controlling heating during a print job).
+A small Go service that connects to a Creality printer's LAN WebSocket interface, decodes live telemetry, normalises the data, and publishes structured MQTT topics suitable for Home Assistant automations.
 
-This project is intentionally designed to be:
+Highlights:
 
-* **Lightweight** – minimal state, no blocking loops
-* **Domain-structured** – separate mappers for temperature, job state, and device state
-* **Easily testable** – all mapping logic is pure functions
-* **Ready for HA** – MQTT topics are stable and friendly to HA MQTT Discovery
-* **VS Code friendly** – go mod tidy, gopls, linting and tests work out of the box
+- Lightweight runtime: reconnecting WS client, minimal shared state
+- Domain mappers: temps, job, device state, and CFS box sensors
+- HA Discovery ready: stable MQTT schema, retained configs, LWT
+- Strong tests: testify assert/require, 70–80% coverage target
+- Tooling: Cobra CLI, pre-commit, Staticcheck, Goreleaser, Docker
 
 ---
 
 ## Repository Structure
 
-```
+```text
 .
 ├── cmd/
-│   └── k1se-bridge/         # main.go entrypoint
+│   └── creality2mqtt/          # CLI commands (main entry + subcommands)
 ├── internal/
 │   ├── mapper/
-│   │   ├── mapper.go        # generic key → topic mapping
-│   │   ├── temps.go         # domain: temperature topics
-│   │   ├── job.go           # domain: print-job topics
-│   │   └── state.go         # domain: connectivity/device-state topics
-│   ├── mqttclient/
-│   │   └── mqtt.go          # lightweight wrapper around Eclipse Paho
-│   └── wsclient/
-│       └── wsclient.go      # reconnecting WebSocket client
+│   │   ├── mapper.go           # generic key → topic mapping + filters
+│   │   ├── temps.go            # domain: temperature topics
+│   │   ├── job.go              # domain: print-job topics
+│   │   ├── state.go            # domain: connectivity/device-state topics
+│   │   └── box.go              # domain: CFS box humidity/temperature/state
+│   ├── discovery/              # Home Assistant MQTT Discovery payloads
+│   │   ├── discovery.go        # aggregate discovery builders
+│   │   ├── sensors.go          # sensors (temp/status/fan/progress)
+│   │   ├── binary_sensors.go   # binary sensors (printing/part fan)
+│   │   ├── switches.go         # switch (light)
+│   │   ├── camera.go           # camera stream hints
+│   │   └── cfs.go              # dynamic CFS sensor discovery
+│   ├── mqttclient/             # MQTT wrapper (rate limiting, helpers)
+│   │   └── client.go
+│   ├── wsclient/               # reconnecting WebSocket client
+│   │   └── client.go
 ├── internal/types/
-│   └── types.go             # shared type: MqttMessage
-├── tests (optional)
-├── go.mod
-└── INSTRUCTIONS.md
+│   └── types.go               # shared type: MqttMessage
+├── Dockerfile                  # container build
+├── docker-compose.yml          # local broker/dev setup
+├── .goreleaser.yaml            # release pipelines (GHCR images)
+├── .pre-commit-config.yaml     # lint/format hooks
+├── Makefile                    # common tasks (lint, test, build)
+├── CONTRIBUTING.md             # contributing and local dev guide
+├── CODE_OF_CONDUCT.md
+├── README.md
+├── go.mod / go.sum
+└── coverage.out / cover.html   # generated test coverage artifacts
 ```
 
 ---
 
 ## Requirements
 
-* Go **1.23+**
-* MQTT broker (Mosquitto, EMQX, HiveMQ, etc.)
-* Creality printer on LAN (K1, K1 Max, K1 SE) with WebSocket enabled
-  Typically:
-
-  ```shell
-  ws://<printer-ip>:9999/
-  ```
+- Go **1.23+**
+- MQTT broker (Mosquitto, EMQX, HiveMQ, etc.)
+- Creality printer on LAN (K1, K1 Max, K1 SE) with WebSocket enabled
+  - WebSocket URL format: `ws://<printer-ip>:9999/`
 
 ---
 
@@ -62,9 +73,9 @@ No message types exist — instead the printer emits **complete + delta snapshot
 
 `mapper.go` maps top-level keys directly to MQTT topics using:
 
-* camelCase → snake_case normalisation
-* implicit type coercion (`"219.900000"` → `"219.900"`)
-* filtering out irrelevant video/streaming keys
+- camelCase → snake_case normalisation
+- implicit type coercion (`"219.900000"` → `"219.900"`)
+- filtering out irrelevant video/streaming keys
 
 Example:
 
@@ -90,11 +101,14 @@ These derived topics make Home Assistant automations much simpler.
 
 Messages are published through a small wrapper around the Paho MQTT client using:
 
-```shell
-mqtt://host:port
-```
+All messages are QoS 0 by default. The MQTT client supports per-topic rate limiting to reduce noise during prints.
 
-All messages are QoS 0 by default (configurable later).
+CLI/env to set minimum publish interval:
+
+```shell
+--mqtt-min-interval 1s
+CREALITY_MQTT_MIN_INTERVAL=1s
+```
 
 ---
 
@@ -103,30 +117,31 @@ All messages are QoS 0 by default (configurable later).
 ### Clone the Repository
 
 ```bash
-git clone https://github.com/<your-user>/k1se-bridge.git
-cd k1se-bridge
+git clone https://github.com/davidcollom/creality2mqtt.git
+cd creality2mqtt
 ```
 
 ### Build
 
 ```bash
-go build ./cmd/k1se-bridge
+go build ./cmd/creality2mqtt
 ```
 
 ### Run
 
 ```bash
-./k1se-bridge \
+./creality2mqtt \
   --ws-url ws://192.168.1.50:9999/ \
   --mqtt-broker tcp://192.168.1.10:1883 \
-  --mqtt-base-topic 3dprinter/k1se
+  --mqtt-base-topic 3dprinter/k1se \
+  --mqtt-min-interval 1s
 ```
 
 ### Example Output
 
 MQTT topics published:
 
-```plain
+```text
 3dprinter/k1se/nozzle_temp               219.900
 3dprinter/k1se/temperature/nozzle/current 219.900
 3dprinter/k1se/job/progress               58
@@ -148,31 +163,40 @@ go test ./...
 
 ```bash
 go test ./... -cover
+go test ./... -coverprofile=coverage.out
+go tool cover -html=coverage.out -o cover.html
 ```
 
-### Mapper Tests
+### Mapper & Discovery Tests
 
 Tests live alongside the mapper package and validate:
 
-* Key normalisation
-* Numeric coercion
-* Noise filtering
-* Derived domain topics
-* Online/printing state interpretation
+- Key normalisation
+- Numeric coercion
+- Noise filtering
+- Derived domain topics
+- Online/printing state interpretation
+- Discovery payload schemas (sensors, binary sensors, switches, camera, CFS)
 
-Use these tests as a reference when adding support for new message fields.
+All tests use `github.com/stretchr/testify/assert` and `github.com/stretchr/testify/require`. Mocks use `github.com/stretchr/testify/mock`. Coverage target is 70–80%.
+
+Use these tests as a reference when adding support for new message fields or discovery entities.
 
 ---
 
-## VS Code Setup
+## Tooling & VS Code Setup
 
-* Install the **Go** extension (golang.go)
-* Enable:
+Recommended extensions:
 
-  * `gopls`
-  * `staticcheck`
-  * `go test` on save (optional)
-* Run `go mod tidy` after adding dependencies
+- Go (golang.go)
+- EditorConfig
+- YAML
+
+Enable:
+
+- `gopls`
+- `staticcheck`
+- `go test` on save (optional)
 
 Recommended workspace settings:
 
@@ -189,9 +213,11 @@ Recommended workspace settings:
 
 ## Contributing
 
-* Keep domain logic isolated (`temps.go`, `job.go`, `state.go`)
-* Add tests for every new mapped field
-* Keep mappings stable once published (MQTT schema stability matters)
-* Use `go vet` and `staticcheck` before PRs
+Please read `CONTRIBUTING.md` for detailed guidance. In brief:
 
-This structure keeps the project clean, maintainable, and portable — whether you're consuming the data in Home Assistant, exporting it to Prometheus, or building higher-level automations like room heating control during print jobs.
+- Keep domain logic isolated (`temps.go`, `job.go`, `state.go`, `box.go`)
+- Add tests and maintain 70–80% coverage for all changes
+- Keep MQTT schemas stable once published; treat discovery topics as contracts
+- Run `go vet`, `staticcheck`, and `go test ./...` before opening PRs
+
+This structure keeps the project clean, maintainable, and portable — whether you're consuming the data in Home Assistant, exporting to Prometheus, or building automations like room heating control during print jobs.
