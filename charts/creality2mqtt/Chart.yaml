@@ -1,0 +1,19 @@
+apiVersion: v2
+name: creality2mqtt
+description: Helm chart for deploying the Creality WebSocket → MQTT bridge
+type: application
+version: 0.1.0
+appVersion: "0.1.0"
+home: https://github.com/davidcollom/creality2mqtt
+sources:
+  - https://github.com/davidcollom/creality2mqtt
+keywords:
+  - creality
+  - mqtt
+  - home-assistant
+maintainers:
+  - name: davidcollom
+    email: david@collom.dev
+annotations:
+  artifacthub.io/license: MIT
+  artifacthub.io/containsSecurityUpdates: "false"

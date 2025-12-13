@@ -2,6 +2,12 @@
 version: 2
 project_name: creality2mqtt
 
+before:
+  hooks:
+    - go mod tidy
+    - go generate ./...
+    - helm lint charts/creality2mqtt
+
 builds:
   - id: creality2mqtt
     main: ./cmd/creality2mqtt
@@ -47,6 +53,12 @@ dockers_v2:
       org.opencontainers.image.revision: "{{ .FullCommit }}"
       org.opencontainers.image.created: "{{ .Date }}"
       org.opencontainers.image.source: "https://github.com/davidcollom/creality2mqtt"
+
+publishers:
+  - name: Helm Publish
+    cmd: |-
+      helm package charts/creality2mqtt --version {{ .Version }} --app-version {{ .Version }} -d dist && \
+      helm push oci://ghcr.io/davidcollom/creality2mqtt-chart dist/creality2mqtt-{{ .Version }}.tgz
 
 changelog:
   sort: desc

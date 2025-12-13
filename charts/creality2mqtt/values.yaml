@@ -1,0 +1,31 @@
+image:
+  repository: ghcr.io/davidcollom/creality2mqtt
+  pullPolicy: IfNotPresent
+
+replicaCount: 1
+
+nameOverride: ""
+fullnameOverride: ""
+
+service:
+  type: ClusterIP
+  port: 8080
+
+resources: {}
+
+nodeSelector: {}
+tolerations: []
+affinity: {}
+
+cfg:
+  wsUrl: "ws://192.168.1.50:9999/"
+  mqttBroker: "tcp://mqtt:1883"
+  mqttBaseTopic: "3dprinter/k1se"
+  mqttMinInterval: "10s"
+  logLevel: "info"
+
+extraEnv: []
+
+annotations: {}
+podAnnotations: {}
+podLabels: {}
