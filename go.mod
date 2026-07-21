@@ -1,6 +1,6 @@
 module github.com/davidcollom/creality2mqtt
 
-go 1.25.5
+go 1.25.12
 
 require (
 	github.com/charmbracelet/log v1.0.0
