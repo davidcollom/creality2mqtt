@@ -15,6 +15,10 @@ updates:
       prefix: "deps"
       include: "scope"
     target-branch: "main"
+    groups:
+      go-dependencies:
+        patterns:
+          - "*"
 
   - package-ecosystem: "github-actions"
     directory: "/"
@@ -27,6 +31,10 @@ updates:
       - "dependencies"
       - "github-actions"
     target-branch: "main"
+    groups:
+      github-actions:
+        patterns:
+          - "*"
 
   - package-ecosystem: "docker"
     directory: "/"
@@ -39,3 +47,7 @@ updates:
       - "dependencies"
       - "docker"
     target-branch: "main"
+    groups:
+      docker-dependencies:
+        patterns:
+          - "*"
