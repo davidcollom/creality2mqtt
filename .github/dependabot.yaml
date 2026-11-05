@@ -51,3 +51,26 @@ updates:
       docker-dependencies:
         patterns:
           - "*"
+
+  - package-ecosystem: "docker-compose"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "wednesday"
+      time: "04:00"
+    open-pull-requests-limit: 5
+    labels:
+      - "dependencies"
+      - "docker"
+    target-branch: "main"
+
+  - package-ecosystem: "helm"
+    directory: "/charts/creality2mqtt"
+    schedule:
+      interval: "weekly"
+      day: "wednesday"
+      time: "04:00"
+    open-pull-requests-limit: 5
+    labels:
+      - "dependencies"
+    target-branch: "main"
