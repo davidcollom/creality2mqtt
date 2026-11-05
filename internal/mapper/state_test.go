@@ -6,8 +6,11 @@ import (
 )
 
 func TestBuildStateMessages(t *testing.T) {
-	t.Parallel()
-
+	// Not parallel on purpose. MapMessageToMqtt calls BuildStateMessages as
+	// well, and both share the package level printerStatusCache, so running
+	// this test alongside the parallel mapper tests lets them reset the cache
+	// between the reset below and the call, which suppresses the publish this
+	// test asserts on.
 	baseTopic := "3dprinter/k1se"
 
 	tests := []struct {
